@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>제2차 세계대전 유럽 전선</title>
+<style>
+/*FONTS*/
+:root { --bg: #03060c; --panel: rgba(10,16,28,0.86); --fg: #f2f2f2; --accent: #ffcf5a; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; overflow: hidden; }
+#stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+#map { width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; display: block; cursor: pointer; }
+#controls { position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px; display: flex; gap: 8px; align-items: center;
+  background: var(--panel); padding: 8px 12px; border-radius: 12px; font-size: 14px; opacity: 0; transition: opacity .25s; }
+body:hover #controls, #controls:focus-within, body.paused #controls { opacity: 1; }
+button, select { font: inherit; color: var(--fg); background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+button:hover { background: rgba(255,255,255,0.2); }
+#hint { color: rgba(255,255,255,0.6); font-size: 12px; }
+body.render #controls { display: none; }
+body.render #map { cursor: default; }
+@media (max-width: 640px) { #hint { display: none; } #controls { bottom: 6px; padding: 6px 8px; } }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="map" aria-label="제2차 세계대전 유럽 전선 애니메이션 지도"></canvas></div>
+<div id="controls">
+  <button id="play" aria-label="재생/일시정지">⏸ 일시정지</button>
+  <button id="restart" aria-label="처음부터">⏮ 처음부터</button>
+  <select id="speed" aria-label="재생 속도">
+    <option value="5">느리게 (5일/초)</option>
+    <option value="11" selected>보통 (11일/초)</option>
+    <option value="25">빠르게 (25일/초)</option>
+    <option value="60">매우 빠르게 (60일/초)</option>
+  </select>
+  <span id="hint">스페이스: 재생/정지 · ←/→: 한 달 이동 · 하단 타임라인 클릭: 이동</span>
+</div>
+<script>/*D3*/</script>
+<script>/*GEO*/</script>
+<script>/*HIST*/</script>
+<script>/*APP*/</script>
+<script>
+(function () {
+  const A = window.WW2;
+  const params = new URLSearchParams(location.search);
+  const renderMode = params.has('render');
+  if (renderMode) document.body.classList.add('render');
+  let t = params.has('t') ? A.dnum(params.get('t')) : A.T_START;
+  let playing = !renderMode, last = performance.now();
+  const speedSel = document.getElementById('speed'), playBtn = document.getElementById('play');
+  let speed = Number(speedSel.value);
+  const setPlaying = (p) => { playing = p; playBtn.textContent = p ? '⏸ 일시정지' : '▶ 재생'; document.body.classList.toggle('paused', !p); };
+  playBtn.onclick = () => { if (!playing && t >= A.T_STOP) t = A.T_START; setPlaying(!playing); };
+  document.getElementById('restart').onclick = () => { t = A.T_START; setPlaying(true); };
+  speedSel.onchange = () => { speed = Number(speedSel.value); };
+  addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); playBtn.click(); }
+    if (e.code === 'ArrowRight') t = Math.min(A.T_STOP, t + 30);
+    if (e.code === 'ArrowLeft') t = Math.max(A.T_START, t - 30);
+  });
+  const cv = document.getElementById('map');
+  cv.addEventListener('click', (e) => {
+    const r = cv.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * A.W, y = ((e.clientY - r.top) / r.height) * A.H;
+    if (y > A.TL.y - 30 && x >= A.TL.x - 10 && x <= A.TL.x + A.TL.w + 10) {
+      t = Math.max(0, Math.min(A.T_END, ((x - A.TL.x) / A.TL.w) * A.T_END));
+    } else setPlaying(!playing);
+  });
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    if (playing) {
+      // intro and outro run at a fixed pace, the war itself at the chosen speed
+      const s = t < 0 || t > A.T_END ? 11 : speed;
+      t += dt * s;
+      if (t >= A.T_STOP) { t = A.T_STOP; setPlaying(false); }
+    }
+    A.render(t);
+    requestAnimationFrame(frame);
+  }
+  function start() { if (renderMode) { window.READY = true; return; } requestAnimationFrame(frame); }
+  window.renderAt = (tt) => { A.render(tt); };
+  (document.fonts ? Promise.all([document.fonts.load('800 66px "Noto Sans KR"'), document.fonts.load('500 20px "Noto Sans KR"')]).catch(() => {}) : Promise.resolve()).then(start);
+})();
+</script>
+</body>
+</html>
